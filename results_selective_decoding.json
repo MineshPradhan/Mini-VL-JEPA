@@ -1,0 +1,74 @@
+[
+  {
+    "tau": 0.0,
+    "decode_rate": 1.0,
+    "decode_savings": 0.0,
+    "mean_staleness": 0.0,
+    "max_staleness": 0.0,
+    "est_ms_per_chunk": 263.2823896408081
+  },
+  {
+    "tau": 0.05,
+    "decode_rate": 0.45598591549295775,
+    "decode_savings": 0.5440140845070423,
+    "mean_staleness": 0.014842028064387185,
+    "max_staleness": 0.04997485876083374,
+    "est_ms_per_chunk": 124.16434772417578
+  },
+  {
+    "tau": 0.1,
+    "decode_rate": 0.307092555331992,
+    "decode_savings": 0.692907444668008,
+    "mean_staleness": 0.036287540895958065,
+    "max_staleness": 0.0999457836151123,
+    "est_ms_per_chunk": 86.08858220653995
+  },
+  {
+    "tau": 0.15,
+    "decode_rate": 0.232897384305835,
+    "decode_savings": 0.7671026156941649,
+    "mean_staleness": 0.06056192275923743,
+    "max_staleness": 0.1499914526939392,
+    "est_ms_per_chunk": 67.11501661920451
+  },
+  {
+    "tau": 0.2,
+    "decode_rate": 0.19190140845070422,
+    "decode_savings": 0.8080985915492958,
+    "mean_staleness": 0.08105152705965388,
+    "max_staleness": 0.19999897480010986,
+    "est_ms_per_chunk": 56.63131766755816
+  },
+  {
+    "tau": 0.25,
+    "decode_rate": 0.16926559356136822,
+    "decode_savings": 0.8307344064386317,
+    "mean_staleness": 0.09740453349872374,
+    "max_staleness": 0.24926042556762695,
+    "est_ms_per_chunk": 50.8427722341338
+  },
+  {
+    "tau": 0.3,
+    "decode_rate": 0.15417505030181086,
+    "decode_savings": 0.8458249496981891,
+    "mean_staleness": 0.11075071981495295,
+    "max_staleness": 0.29920560121536255,
+    "est_ms_per_chunk": 46.983741945184214
+  },
+  {
+    "tau": 0.4,
+    "decode_rate": 0.1358148893360161,
+    "decode_savings": 0.864185110663984,
+    "mean_staleness": 0.13340596319504186,
+    "max_staleness": 0.3951258659362793,
+    "est_ms_per_chunk": 42.28858842696223
+  },
+  {
+    "tau": 0.5,
+    "decode_rate": 0.12776659959758552,
+    "decode_savings": 0.8722334004024145,
+    "mean_staleness": 0.14561481932759046,
+    "max_staleness": 0.49417078495025635,
+    "est_ms_per_chunk": 40.23043893952245
+  }
+]

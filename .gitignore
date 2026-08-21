@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------
+# mini-vl-jepa
+# Rule of thumb: code, configs and small result files go to GitHub.
+# Weights, features and videos go to the Hugging Face Hub.
+# ---------------------------------------------------------------
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- environments ---
+.venv/
+venv/
+env/
+.env
+*.env
+
+# --- model weights (-> Hugging Face Hub) ---
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+*.onnx
+
+# --- dataset and cached features ---
+MSR-VTT/
+data/
+cache/
+features/
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.lmdb
+*.arrow
+
+# --- media ---
+*.mp4
+*.avi
+*.mkv
+*.webm
+*.mov
+media/
+uploads/
+
+# --- training logs ---
+runs/
+logs/
+wandb/
+lightning_logs/
+tensorboard/
+*.log
+nohup.out
+
+# --- caches ---
+.cache/
+huggingface/
+transformers_cache/
+torch_cache/
+.pytest_cache/
+.mypy_cache/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- artifact of `mkdir {a,b,c}` on Windows: delete this directory, don't keep it ---
+"{src,server,frontend,configs,scripts,docs}"/
+
+# ---------------------------------------------------------------
+# Deliberately TRACKED, even though the patterns above are broad.
+# These are small and they are the evidence behind the thesis.
+# ---------------------------------------------------------------
+!requirements.txt
+!requirements-lab.txt
+!configs/**
+!figures/**
+!docs/**
+!RESULTS.md
+!result.md
+!results_*.json
+!baseline_val_captions.json
+!jepa_val_captions.json
+
+# If results/ or curriculum/ hold checkpoints rather than JSON,
+# uncomment the matching line after checking their size:
+# results/
+# curriculum/

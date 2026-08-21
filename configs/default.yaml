@@ -1,0 +1,38 @@
+# Mini VL-JEPA default config (single-GPU friendly)
+
+video_encoder: facebook/vjepa2-vitl-fpc64-256     # frozen
+text_encoder: sentence-transformers/LaBSE          # frozen, multilingual (109 langs)
+
+predictor:
+  video_dim: 1024
+  text_dim: 768
+  hidden_dim: 512
+  num_layers: 6
+  num_heads: 8
+  num_latent_queries: 8
+  dropout: 0.1
+  max_video_tokens: 1024
+
+data:
+  train_annotations: data/msrvtt_train.json
+  val_annotations: data/msrvtt_val.json
+  video_root: C:\Users\Minesh\Downloads\Summer Project\files\mini-vl-jepa\MSR-VTT\Video_Datasets
+  num_frames: 16
+
+train:
+  batch_size: 48          # larger batch => better InfoNCE; use grad accum if OOM
+  epochs: 10
+  lr: 3.0e-4
+  weight_decay: 0.05
+  num_workers: 4
+  log_every: 20
+  ckpt_dir: checkpoints
+
+loss:
+  temperature: 0.05
+  w_cos: 1.0
+  w_nce: 1.0
+  w_std: 0.1
+
+selective_decoding:
+  threshold: 0.25          # cosine drift before decoder fires
