@@ -266,6 +266,40 @@ pre{
 kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:var(--surface)}
 @media (max-width:900px){ .stage{grid-template-columns:1fr} }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+
+/* ---------- dataset browser ---------- */
+.browse{margin-top:18px;padding:16px 18px}
+.browse-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;margin-bottom:12px}
+.browse-head h2{font-family:var(--display);font-size:20px;margin:0;font-weight:600}
+.browse-head p{margin:0;color:var(--muted);font-size:13px}
+.bctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface);color:var(--ink-2);padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--signal);color:#fff}
+.seg button .n{opacity:.7;font-family:var(--mono);font-size:11px;margin-left:4px}
+.bctl input,.bctl select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.bctl input{flex:1 1 200px;min-width:0}
+.blist{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;max-height:420px;overflow:auto;padding:2px}
+.bitem{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line-soft);border-radius:8px;background:var(--surface-2);padding:9px 11px;cursor:pointer;font:inherit;color:var(--ink)}
+.bitem:hover{border-color:var(--signal)}
+.bitem.on{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
+.bitem-top{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.bitem-top .sp{color:var(--muted)}
+.bitem-top .ready{margin-left:auto;color:var(--gate-on);font-size:11px}
+.bitem-cap{font-size:13px;color:var(--ink-2);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bitem .bar{height:3px}
+.tb{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;border:1px solid currentColor}
+.tb.easy{color:var(--gate-on)} .tb.medium{color:var(--signal)} .tb.hard{color:var(--warn)}
+.bfoot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:12.5px;gap:8px;flex-wrap:wrap}
+/* ---------- human captions next to the model's ---------- */
+.human{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:12px}
+.human-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.human-head .eyebrow{margin:0}
+.human ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:13.5px;line-height:1.5}
+.human ul li:first-child{color:var(--ink)}
+.human .match{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.human .match b{color:var(--gate-on)}
 </style>
 </head>
 <body>
@@ -342,8 +376,47 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
         <span class="caret">▸</span><span id="candsLabel">Show the other candidates</span>
       </button>
       <div class="cands" id="cands" hidden></div>
+
+      <div class="human" id="human" hidden>
+        <div class="human-head">
+          <p class="eyebrow">What people wrote</p>
+          <span class="tb" id="humanTier"></span>
+          <span class="match" id="humanMatch"></span>
+        </div>
+        <ul id="humanList"></ul>
+        <p class="meter-lbl" id="humanNote"></p>
+      </div>
     </section>
   </div>
+
+  <!-- ============ DATASET BROWSER ============ -->
+  <section class="card browse" id="browse">
+    <div class="browse-head">
+      <h2>Browse the dataset</h2>
+      <p id="bSummary">Held-out MSR-VTT clips (Val + Test) the model never saw in training.</p>
+    </div>
+    <div class="bctl">
+      <div class="seg" id="bTier">
+        <button data-t="all" class="on">All<span class="n" id="nAll"></span></button>
+        <button data-t="easy">Easy<span class="n" id="nEasy"></span></button>
+        <button data-t="medium">Medium<span class="n" id="nMedium"></span></button>
+        <button data-t="hard">Hard<span class="n" id="nHard"></span></button>
+      </div>
+      <input type="search" id="bQuery" placeholder="Search a topic (guitar, cooking, dog...) or a video id" aria-label="Search videos">
+      <select id="bSplit" aria-label="Split">
+        <option value="all">Val + Test</option><option value="Val">Val</option><option value="Test">Test</option>
+      </select>
+      <select id="bSort" aria-label="Sort">
+        <option value="match">Best caption match</option><option value="random">Random order</option><option value="id">Video id</option>
+      </select>
+      <button class="btn" id="bRandom" title="Caption a random clip from the current filter">Surprise me</button>
+    </div>
+    <div class="blist" id="bList"></div>
+    <div class="bfoot">
+      <span id="bCount"></span>
+      <button class="btn" id="bMore" hidden>Show more</button>
+    </div>
+  </section>
 
   <!-- ============ TABS ============ -->
   <div class="tabs">
@@ -604,6 +677,7 @@ async function boot(){
   }catch(e){ state.samples = FALLBACK_SAMPLES; }
   buildSources();
   if(state.samples.length) pick(state.samples[0]);
+  loadBrowse(false);
 }
 
 /* ---------- sources ---------- */
@@ -688,7 +762,7 @@ async function runCaption(body, formData){
 }
 
 function setBusy(on){
-  $("#capText").textContent = on ? "predicting…" : $("#capText").textContent;
+  $("#capText").textContent = on ? "captioning live on the GPU… (10–20 s for a new clip)" : $("#capText").textContent;
   $("#capText").style.opacity = on ? .45 : 1;
 }
 
@@ -707,7 +781,7 @@ function buildLangs(){
 }
 
 /* ---------- render ---------- */
-function render(){ renderCaption(); renderGate(); renderThesis(); }
+function render(){ renderCaption(); renderGate(); renderThesis(); renderHuman(); }
 
 function renderCaption(){
   const r = state.result; if(!r) return;
@@ -727,7 +801,7 @@ function renderCaption(){
 
   // candidates
   const box = $("#cands"); box.innerHTML = "";
-  const order = {easy:0, medium:1, hard:2};
+  const order = {short:0, standard:1, detailed:2};
   [...cands].sort((a,b)=>(order[a.tier]??9)-(order[b.tier]??9)).forEach(c=>{
     const d = document.createElement("div");
     d.className = "cand" + (c.id===best.id ? " best" : "");
@@ -782,6 +856,77 @@ function renderThesis(){
   $("#rawJson").textContent = JSON.stringify(r, null, 2);
 }
 
+function renderHuman(){
+  const r = state.result, h = r && r.human, box = $("#human");
+  if(!h || !h.captions || !h.captions.length){ box.hidden = true; return; }
+  box.hidden = false;
+  const t = $("#humanTier");
+  t.textContent = h.tier ? h.tier + " tier" : ""; t.className = "tb " + (h.tier || "");
+  t.hidden = !h.tier;
+  $("#humanMatch").innerHTML = "match <b>" + h.match.toFixed(3) + "</b>";
+  $("#humanList").innerHTML = h.captions.slice(0,4).map(c=>"<li>"+escapeHtml(c)+"</li>").join("");
+  $("#humanNote").textContent = "MSR-VTT human captions (" + h.count + " per clip), closest to the model's first. " +
+    "Match = LaBSE cosine between the English caption and the closest human caption." +
+    (h.split ? " " + h.split + " split, never seen in training." : "");
+}
+
+/* ---------- dataset browser ---------- */
+const browse = { tier:"all", split:"all", q:"", sort:"match", offset:0, total:0, timer:null };
+async function loadBrowse(append){
+  if(!state.online){ $("#bCount").textContent = "Start the backend to browse the dataset."; return; }
+  if(!append) browse.offset = 0;
+  const qs = new URLSearchParams({tier:browse.tier, split:browse.split, q:browse.q,
+                                  sort:browse.sort, offset:browse.offset, limit:60});
+  let j;
+  try{ j = await api("/api/catalog?" + qs); }
+  catch(e){ $("#bCount").textContent = "Could not load the catalog: " + e.message; return; }
+  const c = j.counts || {};
+  $("#nEasy").textContent = c.easy ?? ""; $("#nMedium").textContent = c.medium ?? ""; $("#nHard").textContent = c.hard ?? "";
+  $("#nAll").textContent = (c.easy||0)+(c.medium||0)+(c.hard||0) || "";
+  browse.total = j.total;
+  const list = $("#bList");
+  if(!append) list.innerHTML = "";
+  j.videos.forEach(v=>{
+    const b = document.createElement("button");
+    b.className = "bitem" + (state.sample && state.sample.id===v.id ? " on" : "");
+    b.dataset.id = v.id;
+    b.innerHTML =
+      '<div class="bitem-top"><span>'+v.id+'</span><span class="tb '+v.tier+'">'+v.tier+'</span>' +
+      '<span class="sp">'+v.split+'</span>' + (v.cached ? '<span class="ready">● ready</span>' : '') + '</div>' +
+      '<div class="bitem-cap">“'+escapeHtml(v.human)+'”</div>' +
+      '<div class="bar" title="caption match '+v.match.toFixed(2)+'"><i style="width:'+Math.round(v.match*100)+'%"></i></div>';
+    b.onclick = ()=>pickCatalog(v);
+    list.appendChild(b);
+  });
+  browse.offset += j.videos.length;
+  $("#bCount").textContent = j.total ? ("Showing " + browse.offset + " of " + j.total + " clips · bar = caption match with the human captions") : "No clips match that search.";
+  $("#bMore").hidden = browse.offset >= j.total;
+}
+function pickCatalog(v){
+  document.querySelectorAll(".bitem").forEach(b=>b.classList.toggle("on", b.dataset.id===v.id));
+  pick({id:v.id, title:v.id, url:"/api/video/"+v.id});
+  $(".stage").scrollIntoView({behavior:"smooth", block:"start"});
+}
+document.querySelectorAll("#bTier button").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll("#bTier button").forEach(x=>x.classList.toggle("on", x===b));
+    browse.tier = b.dataset.t; loadBrowse(false);
+  };
+});
+$("#bQuery").oninput = e=>{
+  clearTimeout(browse.timer);
+  browse.timer = setTimeout(()=>{ browse.q = e.target.value; loadBrowse(false); }, 250);
+};
+$("#bSplit").onchange = e=>{ browse.split = e.target.value; loadBrowse(false); };
+$("#bSort").onchange = e=>{ browse.sort = e.target.value; loadBrowse(false); };
+$("#bMore").onclick = ()=>loadBrowse(true);
+$("#bRandom").onclick = async ()=>{
+  if(!state.online) return;
+  const qs = new URLSearchParams({tier:browse.tier, split:browse.split, q:browse.q, sort:"random", limit:1});
+  try{ const j = await api("/api/catalog?" + qs); if(j.videos.length) pickCatalog(j.videos[0]); }
+  catch(e){ $("#modeNote").textContent = "Random pick failed: " + e.message; }
+};
+
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 /* ---------- playhead follows the video across the gate strip ---------- */
@@ -830,8 +975,8 @@ const STEPS = [
     d:"Consecutive windows of a video usually mean the same thing. Drift is one minus the cosine against the last committed embedding. Under τ the caption is reused and the decoder never runs; over τ the gate fires and a fresh decode is triggered. Comparing costs a dot product; generating costs an autoregressive pass.",
     s:"1 − cos(ẑₜ, ẑ_ref) > τ ?  decode : reuse" },
   { t:"05 · mT5-small + LoRA — trainable",
-    d:"The second trainable block turns the 768-d vector back into a sentence. Three decoding tiers — easy, medium, hard — propose different caption styles from the same vector. The current decoder is English (curriculum Stages 1–3); in this demo the Hindi and Chinese captions are NLLB translations of those candidates, each re-scored against ẑ with LaBSE. Native multilingual decoding is curriculum Stage 4.",
-    s:"ẑ ∈ ℝ⁷⁶⁸  →  easy / medium / hard  ×  EN · HI · ZH" },
+    d:"The second trainable block turns the 768-d vector back into a sentence. Three decoding styles — short, standard, detailed — propose different captions from the same vector. The current decoder is English (curriculum Stages 1–3); in this demo the Hindi and Chinese captions are NLLB translations of those candidates, each re-scored against ẑ with LaBSE. Native multilingual decoding is curriculum Stage 4.",
+    s:"ẑ ∈ ℝ⁷⁶⁸  →  short / standard / detailed  ×  EN · HI · ZH" },
   { t:"06 · LaBSE re-rank — frozen",
     d:"Generation is the weak head; retrieval is the strong one. Each candidate caption is re-encoded with LaBSE and scored by cosine against the predicted embedding, so the predictor grades the decoder rather than trusting beam log-probability alone.",
     s:"argmax cos(z_cand, ẑ)" },
@@ -900,7 +1045,7 @@ document.querySelectorAll(".tab").forEach(t=>{
   };
 });
 document.addEventListener("keydown", e=>{
-  if(/input|textarea/i.test(e.target.tagName)) return;
+  if(/input|textarea|select/i.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
   if(k===" "){ e.preventDefault(); const v=$("#vid"); v.paused ? v.play() : v.pause(); }
   if(k==="c") $("#btnCands").click();

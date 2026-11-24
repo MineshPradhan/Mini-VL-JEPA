@@ -73,10 +73,43 @@ DECODER_CKPT = _resolve(os.environ.get("DECODER_CKPT",
 # the Stage 1b fine-tune so the decoder matches the new predictor.
 CONFIG_PATH = ROOT / "configs" / "default.yaml"
 VIDEO_DIR = _resolve(os.environ.get("VIDEO_DIR", "MSR-VTT/Video_Datasets/Val"))
+VIDEOS_ROOT = _resolve(os.environ.get("VIDEOS_ROOT", "MSR-VTT/Video_Datasets"))
+CAPTIONS_DIR = _resolve(os.environ.get("CAPTIONS_DIR", "MSR-VTT/Video_Captions"))
+CATALOG_PATH = ROOT / "web" / "catalog.json"
 UPLOAD_DIR = ROOT / "uploads"
+CACHE_DIR = ROOT / "cache" / "results"  # live results survive restarts
+CACHE_VERSION = 3  # bump when the response shape changes
 
 GPU_LOCK = threading.Lock()  # one request on the 6 GB card at a time
 RESULT_CACHE = {}
+
+
+def _load_catalog():
+    """Held-out (Val + Test) videos pre-captioned by build_catalog.py."""
+    if not CATALOG_PATH.exists():
+        print(f"WARNING: {CATALOG_PATH} missing - run build_catalog.py; "
+              "the dataset browser will be empty")
+        return {}
+    import json
+    with open(CATALOG_PATH, encoding="utf-8") as f:
+        return {r["id"]: r for r in json.load(f)["videos"]}
+
+
+def _load_references():
+    """video id -> the ~20 human MSR-VTT captions (Val + Test)."""
+    import json
+    refs = {}
+    for name in ("Val_Captions.json", "Test_Captions.json"):
+        p = CAPTIONS_DIR / name
+        if p.exists():
+            with open(p, encoding="utf-8") as f:
+                for num, items in json.load(f).items():
+                    refs[f"video{num}"] = [it["caption"].strip() for it in items]
+    return refs
+
+
+CATALOG = _load_catalog()
+REFERENCES = _load_references()
 
 # Clips from results/demo_shortlist_final.md (R@1-correct, cap_sim >= 0.8).
 SAMPLES = [("video7004", "Trampoline"), ("video6745", "Cooking"),
@@ -88,15 +121,15 @@ SAMPLES = [("video7004", "Trampoline"), ("video6745", "Cooking"),
 METRICS = {"r1": 19.72, "r5": 44.87, "r10": 58.35, "medr": 7,
            "retention": "83-97%", "speedup": 3.1, "params_m": 26.5}
 
-# Decoding presets for the three candidate captions. "medium" is exactly the
+# Decoding presets for the three candidate captions. "standard" is exactly the
 # setting the reported caption metrics were computed with (eval_captions.py).
 TIER_PRESETS = {
-    "easy": dict(num_beams=4, max_new_tokens=12, length_penalty=0.6,
-                 no_repeat_ngram_size=2),
-    "medium": dict(num_beams=5, max_new_tokens=30, length_penalty=1.0,
-                   no_repeat_ngram_size=3),
-    "hard": dict(num_beams=8, max_new_tokens=40, length_penalty=2.0,
-                 no_repeat_ngram_size=3),
+    "short": dict(num_beams=4, max_new_tokens=12, length_penalty=0.6,
+                  no_repeat_ngram_size=2),
+    "standard": dict(num_beams=5, max_new_tokens=30, length_penalty=1.0,
+                     no_repeat_ngram_size=3),
+    "detailed": dict(num_beams=8, max_new_tokens=40, length_penalty=2.0,
+                     no_repeat_ngram_size=3),
 }
 NLLB_MODEL = "facebook/nllb-200-distilled-600M"
 NLLB_CODES = {"hi": "hin_Deva", "zh": "zho_Hans"}
@@ -290,9 +323,26 @@ def caption_result(path, video_id, langs=("en", "hi", "zh"), threshold=0.10):
                      "source": "NLLB translation of the English candidates"}
     t_dec = time.perf_counter()
 
+    # Human MSR-VTT captions for the clip, closest to the chosen caption
+    # first, with the live LaBSE match (same cap_sim metric as RESULTS.md).
+    human = None
+    refs = REFERENCES.get(video_id)
+    if refs:
+        best_text = next(c["text"] for c in cands if c["id"] == best_id)
+        e = STATE["labse"].encode([best_text] + refs, convert_to_tensor=True,
+                                  normalize_embeddings=True).float()
+        sims = (e[1:] @ e[0]).tolist()
+        order = sorted(range(len(refs)), key=lambda i: -sims[i])
+        meta = CATALOG.get(video_id, {})
+        human = {"captions": [refs[i] for i in order[:5]],
+                 "count": len(refs),
+                 "match": round(float(sims[order[0]]), 4),
+                 "tier": meta.get("tier"), "split": meta.get("split")}
+
     decoded = sum(e["decoded"] for e in events)
     return {
         "video_id": video_id, "tau": threshold, "offline": False,
+        "human": human, "cache_version": CACHE_VERSION,
         "langs": {k: v for k, v in out.items() if k in langs},
         "selective": {"tau": threshold, "windows": len(events),
                       "decoded": decoded,
@@ -308,10 +358,33 @@ def caption_result(path, video_id, langs=("en", "hi", "zh"), threshold=0.10):
 
 
 def _sample_path(vid):
-    p = VIDEO_DIR / f"{Path(vid).name}.mp4"
+    vid = Path(vid).name  # no path tricks
+    split = CATALOG.get(vid, {}).get("split")
+    p = VIDEOS_ROOT / split / f"{vid}.mp4" if split else VIDEO_DIR / f"{vid}.mp4"
     if not p.exists():
         raise HTTPException(404, f"no video named {vid}")
     return p
+
+
+def cached_result(vid):
+    """Memory -> disk -> compute. Caller must hold GPU_LOCK when computing."""
+    import json
+    if vid in RESULT_CACHE:
+        return RESULT_CACHE[vid]
+    f = CACHE_DIR / f"{vid}.json"
+    if f.exists():
+        try:
+            r = json.loads(f.read_text(encoding="utf-8"))
+            if r.get("cache_version") == CACHE_VERSION:
+                RESULT_CACHE[vid] = r
+                return r
+        except (OSError, ValueError):
+            pass
+    r = caption_result(_sample_path(vid), vid)
+    RESULT_CACHE[vid] = r
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
+    return r
 
 
 def _warm_cache():
@@ -320,8 +393,7 @@ def _warm_cache():
         if (VIDEO_DIR / f"{vid}.mp4").exists() and vid not in RESULT_CACHE:
             try:
                 with GPU_LOCK:
-                    if vid not in RESULT_CACHE:
-                        RESULT_CACHE[vid] = caption_result(_sample_path(vid), vid)
+                    cached_result(vid)
                 en = RESULT_CACHE[vid]["langs"]["en"]
                 best = next(c for c in en["candidates"] if c["id"] == en["best_id"])
                 print(f"  ready {vid}: {best['text']} ({best['score']:.3f})")
@@ -448,9 +520,42 @@ async def api_caption(request: Request):
                 pass
 
     body = await request.json()
-    vid = str(body.get("video_id", ""))
-    path = _sample_path(vid)
+    vid = Path(str(body.get("video_id", ""))).name
+    _sample_path(vid)  # 404 early for unknown ids
+    if vid in RESULT_CACHE:
+        return RESULT_CACHE[vid]
     with GPU_LOCK:
-        if vid not in RESULT_CACHE:
-            RESULT_CACHE[vid] = caption_result(path, vid)
-    return RESULT_CACHE[vid]
+        return cached_result(vid)
+
+
+@app.get("/api/catalog")
+def api_catalog(tier: str = "all", split: str = "all", q: str = "",
+                sort: str = "match", offset: int = 0, limit: int = 60):
+    """Browse the held-out videos. Lists the human captions, not the model's,
+    so picking a clip doesn't give away what the model will say."""
+    rows = list(CATALOG.values())
+    if tier in ("easy", "medium", "hard"):
+        rows = [r for r in rows if r["tier"] == tier]
+    if split in ("Val", "Test"):
+        rows = [r for r in rows if r["split"] == split]
+    q = q.strip().lower()
+    if q:
+        rows = [r for r in rows if q in r["id"].lower()
+                or any(q in c.lower() for c in REFERENCES.get(r["id"], []))]
+    if sort == "random":
+        import random
+        rows = random.sample(rows, len(rows))
+    elif sort == "id":
+        rows.sort(key=lambda r: int(r["id"][5:]))
+    else:  # best caption match first
+        rows.sort(key=lambda r: -r["cap_sim"])
+    page = rows[max(0, offset):max(0, offset) + max(1, min(limit, 200))]
+    counts = {t: sum(1 for r in CATALOG.values() if r["tier"] == t)
+              for t in ("easy", "medium", "hard")}
+    return {"total": len(rows), "counts": counts,
+            "videos": [{"id": r["id"], "split": r["split"], "tier": r["tier"],
+                        "match": r["cap_sim"],
+                        "human": (REFERENCES.get(r["id"]) or [""])[0],
+                        "cached": r["id"] in RESULT_CACHE
+                        or (CACHE_DIR / f"{r['id']}.json").exists()}
+                       for r in page]}
