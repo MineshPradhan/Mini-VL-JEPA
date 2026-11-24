@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mini VL-JEPA — live demo</title>
+<style>
+/* ============================================================
+   MINI VL-JEPA — presentation demo
+   Design tokens. Cool slate "instrument panel" palette.
+   Deliberately NOT cream/terracotta and NOT black/acid-green.
+   The two colours that carry meaning:
+     --gate-on  = decoder ran on this window
+     --gate-off = decoder skipped, caption reused
+   Everything else stays quiet so those two read from the back row.
+   ============================================================ */
+:root{
+  --paper:#EDEEF2;
+  --surface:#FFFFFF;
+  --surface-2:#F5F6F9;
+  --ink:#191C25;
+  --ink-2:#3B4150;
+  --muted:#6A7183;
+  --line:#D6DAE3;
+  --line-soft:#E6E9EF;
+  --signal:#2D2FB5;        /* the model's committed choice */
+  --signal-soft:#E7E7FA;
+  --gate-on:#0E7C6B;       /* decoder fired */
+  --gate-on-soft:#DFF0EC;
+  --gate-off:#B7BDCA;      /* decoder held */
+  --warn:#9A4B12;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(25,28,37,.06), 0 8px 24px -12px rgba(25,28,37,.18);
+  --display:"Bahnschrift","Archivo Narrow","Franklin Gothic Medium","Segoe UI Semibold","Helvetica Neue",sans-serif;
+  --body:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,Menlo,monospace;
+}
+[data-theme="dark"]{
+  --paper:#0F1218;
+  --surface:#161A22;
+  --surface-2:#1C212B;
+  --ink:#E8EAF0;
+  --ink-2:#C3C8D4;
+  --muted:#8D94A5;
+  --line:#2A303C;
+  --line-soft:#232936;
+  --signal:#8B8CFF;
+  --signal-soft:#22243B;
+  --gate-on:#3FBFA6;
+  --gate-on-soft:#16302C;
+  --gate-off:#454C5C;
+  --warn:#E0964F;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--body);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1200px;margin:0 auto;padding:22px 22px 72px}
+
+/* ---------- header ---------- */
+.top{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:20px}
+.brand h1{
+  font-family:var(--display);font-size:clamp(28px,3.4vw,42px);
+  letter-spacing:.01em;font-weight:700;margin:0;line-height:1.02;
+}
+.brand h1 .thin{color:var(--muted);font-weight:400}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:14.5px;max-width:62ch}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.chipbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.tag{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;
+  border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--ink-2);
+  background:var(--surface);
+}
+.tag b{color:var(--signal);font-weight:600}
+button{font-family:inherit;font-size:14px;color:inherit;cursor:pointer}
+.btn{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:7px 12px;transition:border-color .15s,background .15s;
+}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,a:focus-visible,input:focus-visible,video:focus-visible{
+  outline:2px solid var(--signal);outline-offset:2px
+}
+.btn.on{background:var(--signal);border-color:var(--signal);color:#fff}
+
+/* ---------- main grid ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(0,1fr);gap:18px;align-items:start}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.card-pad{padding:16px 18px}
+.eyebrow{
+  font-family:var(--display);text-transform:uppercase;letter-spacing:.12em;
+  font-size:11.5px;color:var(--muted);margin:0 0 10px;font-weight:600;
+}
+
+/* ---------- video ---------- */
+.player{background:#000;border-radius:var(--radius) var(--radius) 0 0;overflow:hidden;position:relative}
+.player video{display:block;width:100%;aspect-ratio:16/9;background:#000;object-fit:contain}
+.player .empty{
+  position:absolute;inset:0;display:grid;place-items:center;color:#9AA1B2;
+  font-size:14px;text-align:center;padding:24px;
+}
+.sources{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+.src{
+  border:1px solid var(--line);background:var(--surface-2);border-radius:7px;
+  padding:6px 11px;font-size:13.5px;white-space:nowrap;
+}
+.src.on{background:var(--signal);border-color:var(--signal);color:#fff}
+.src.up{border-style:dashed;color:var(--muted)}
+
+/* ---------- SIGNATURE: the gate strip ---------- */
+.gate{padding:14px 14px 16px}
+.gate-head{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.gate-head .eyebrow{margin:0}
+.gate-legend{margin-left:auto;display:flex;gap:12px;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.swatch.on{background:var(--gate-on)}
+.swatch.off{background:var(--gate-off)}
+.strip{position:relative;display:flex;gap:3px;height:46px;align-items:stretch}
+.win{
+  flex:1 1 0;border-radius:3px;position:relative;border:none;padding:0;
+  background:var(--gate-off);opacity:.42;transition:opacity .15s,transform .15s;
+}
+.win.fired{background:var(--gate-on);opacity:.55}
+.win.active{opacity:1;transform:scaleY(1.06)}
+.win:hover{opacity:.95}
+.win .drift{
+  position:absolute;left:50%;top:-24px;transform:translateX(-50%);
+  font-family:var(--mono);font-size:10.5px;background:var(--ink);color:var(--paper);
+  padding:2px 5px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
+}
+.win:hover .drift{opacity:1}
+.playhead{
+  position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--signal);
+  border-radius:2px;pointer-events:none;transition:left .08s linear;
+}
+.gate-foot{display:flex;gap:14px;margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.gate-foot b{color:var(--ink);font-weight:600}
+
+/* ---------- caption / commit card ---------- */
+.langs{display:flex;gap:6px;margin-bottom:14px}
+.lang{border:1px solid var(--line);background:var(--surface-2);border-radius:7px;padding:5px 12px;font-size:13.5px}
+.lang.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.commit{border-left:3px solid var(--signal);padding-left:14px;margin:2px 0 16px}
+.commit .badge{
+  display:inline-flex;align-items:center;gap:6px;font-family:var(--display);
+  text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:600;
+  color:var(--signal);background:var(--signal-soft);border-radius:5px;padding:3px 8px;
+}
+.hold{margin-left:9px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.hold.fresh{color:var(--gate-on);font-weight:600}
+.caption{
+  font-size:clamp(19px,2.1vw,25px);line-height:1.32;margin:11px 0 12px;
+  letter-spacing:-.005em;
+}
+.caption.hi,.caption.zh{font-size:clamp(18px,2vw,23px);line-height:1.5}
+.meter{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.meter-track{flex:1;height:6px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:4px;overflow:hidden}
+.meter-fill{height:100%;background:var(--signal);width:0;transition:width .5s cubic-bezier(.2,.7,.3,1)}
+.meter-val{font-family:var(--mono);font-size:13px;color:var(--ink-2);min-width:52px;text-align:right}
+.meter-lbl{font-size:12px;color:var(--muted)}
+
+.disclose{
+  width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--line-soft);
+  padding:12px 0 0;color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:7px;
+}
+.disclose:hover{color:var(--ink)}
+.disclose .caret{transition:transform .18s}
+.disclose[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.cands{display:grid;gap:8px;margin-top:12px}
+.cand{border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;background:var(--surface-2)}
+.cand-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.tier{
+  font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;font-size:10.5px;
+  font-weight:600;border:1px solid var(--line);border-radius:4px;padding:2px 7px;color:var(--ink-2);
+}
+.cand-score{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.cand-text{font-size:14.5px;color:var(--ink-2)}
+.cand.best{border-color:var(--signal);background:var(--signal-soft)}
+.bar{height:3px;background:var(--line);border-radius:2px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--muted);width:0;transition:width .5s}
+.cand.best .bar i{background:var(--signal)}
+
+/* ---------- tabs ---------- */
+.tabs{margin-top:26px}
+.tablist{display:flex;gap:2px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tab{
+  background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;
+  color:var(--muted);font-family:var(--display);font-size:15px;letter-spacing:.02em;
+}
+.tab.on{color:var(--ink);border-bottom-color:var(--signal)}
+.panel{display:none;padding:20px 0 0}
+.panel.on{display:block}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:16px}
+.note{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--surface)}
+.note h4{font-family:var(--display);font-size:15.5px;margin:0 0 6px;letter-spacing:.01em}
+.note p{margin:0;font-size:14px;color:var(--ink-2)}
+.note .vs{display:block;margin-top:7px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{font-family:var(--display);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+tr.ours td{background:var(--signal-soft)}
+tr.ours td:first-child{font-weight:600}
+td.num{font-family:var(--mono);white-space:nowrap}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.caveat{font-size:12.5px;color:var(--muted);margin:10px 2px 0}
+.hfid{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line);display:inline-block;margin-top:3px}
+.hfid:hover{color:var(--signal);border-bottom-color:var(--signal)}
+.hfid.none{border-bottom:0;font-style:italic}
+
+/* ---------- architecture svg ---------- */
+.arch{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
+.arch svg{width:100%;height:auto;display:block}
+.arch text{font-family:var(--body)}
+
+/* ---------- architecture step-through ---------- */
+.arch .astep{transition:opacity .22s ease}
+.arch.stepping .astep{opacity:.16}
+.arch.stepping .astep.on{opacity:1}
+.steps{margin-top:12px}
+.steprow{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.stepbtn{min-width:38px;text-align:center;padding:6px 10px}
+.stepbtn.wide{min-width:auto;margin-left:auto}
+.stepdots{display:flex;gap:5px;flex-wrap:wrap}
+.stepdot{
+  font-family:var(--mono);font-size:12px;border:1px solid var(--line);background:var(--surface);
+  border-radius:7px;padding:5px 10px;color:var(--muted);transition:all .15s;
+}
+.stepdot:hover{border-color:var(--muted);color:var(--ink)}
+.stepdot.on{background:var(--signal);border-color:var(--signal);color:#fff}
+.stepbody{
+  margin-top:12px;border-left:3px solid var(--signal);padding:2px 0 2px 14px;min-height:76px;
+}
+.stepbody h4{font-family:var(--display);font-size:16.5px;margin:0 0 5px;letter-spacing:.01em}
+.stepbody p{margin:0;font-size:14.5px;color:var(--ink-2);max-width:78ch}
+.stepshape{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:7px!important}
+
+/* ---------- thesis panel (hidden by default) ---------- */
+.thesis{display:none;margin-top:26px}
+.thesis.on{display:block}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
+.metric{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;background:var(--surface)}
+.metric .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em}
+.metric .k{font-size:12px;color:var(--muted);margin-top:2px}
+pre{
+  font-family:var(--mono);font-size:12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px;overflow:auto;max-height:320px;margin:0;color:var(--ink-2)
+}
+
+/* ---------- misc ---------- */
+.status{
+  display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;
+  color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--surface)
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gate-on)}
+.dot.off{background:var(--warn)}
+.busy{color:var(--muted);font-size:14px;padding:10px 0}
+.foot{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:var(--surface)}
+@media (max-width:900px){ .stage{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <header class="top">
+    <div class="brand">
+      <h1>Mini VL-JEPA <span class="thin">— predict, gate, caption</span></h1>
+      <p>Frozen video features in, multilingual sentence embedding out. The decoder only runs when the prediction actually moves.</p>
+      <div class="chipbar">
+        <span class="tag">V-JEPA 2 <b>frozen</b></span>
+        <span class="tag">LaBSE target <b>109 languages</b></span>
+        <span class="tag">predictor head <b>trainable</b></span>
+        <span class="tag">mT5-small + <b>LoRA</b></span>
+        <span class="tag" id="tagBackend"><span class="dot off"></span> checking backend</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="btnTheme" title="Toggle dark theme">Dark</button>
+      <button class="btn" id="btnThesis" title="Show measurement panel (T)">Thesis mode</button>
+    </div>
+  </header>
+
+  <!-- ============ STAGE ============ -->
+  <div class="stage">
+
+    <!-- LEFT: player + gate strip -->
+    <section class="card">
+      <div class="sources" id="sources"></div>
+      <div class="player">
+        <video id="vid" controls playsinline preload="metadata"></video>
+        <div class="empty" id="vidEmpty">Pick a clip above, or load one from your machine.</div>
+      </div>
+
+      <div class="gate">
+        <div class="gate-head">
+          <p class="eyebrow">Selective decoding &nbsp;·&nbsp; one block = one window</p>
+          <div class="gate-legend">
+            <span><span class="swatch on"></span>decoder ran</span>
+            <span><span class="swatch off"></span>caption reused</span>
+          </div>
+        </div>
+        <div class="strip" id="strip"><div class="playhead" id="playhead" style="left:0"></div></div>
+        <div class="gate-foot" id="gateFoot">
+          <span>τ <b id="fTau">—</b></span>
+          <span>windows <b id="fWin">—</b></span>
+          <span>decoder calls <b id="fDec">—</b></span>
+          <span>speed-up <b id="fSpd">—</b></span>
+          <span>latency <b id="fLat">—</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: commit card -->
+    <section class="card card-pad">
+      <p class="eyebrow">Caption</p>
+
+      <div class="langs" id="langs"></div>
+
+      <div class="commit">
+        <span class="badge" id="bestBadge">■ best of 3</span>
+        <span class="hold" id="holdState"></span>
+        <p class="caption" id="capText">—</p>
+        <div class="meter">
+          <span class="meter-lbl">grounding</span>
+          <span class="meter-track"><span class="meter-fill" id="capFill"></span></span>
+          <span class="meter-val" id="capScore">—</span>
+        </div>
+        <p class="meter-lbl" id="capWhy">cosine between the predicted embedding and the caption re-encoded with LaBSE</p>
+      </div>
+
+      <button class="disclose" id="btnCands" aria-expanded="false">
+        <span class="caret">▸</span><span id="candsLabel">Show the other candidates</span>
+      </button>
+      <div class="cands" id="cands" hidden></div>
+    </section>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="tabs">
+    <div class="tablist" role="tablist">
+      <button class="tab on" data-p="arch">Architecture</button>
+      <button class="tab" data-p="adv">Advantages</button>
+      <button class="tab" data-p="lim">Limitations</button>
+      <button class="tab" data-p="dis">Disadvantages</button>
+      <button class="tab" data-p="use">Where it fits</button>
+      <button class="tab" data-p="cmp">Compared with</button>
+    </div>
+
+    <!-- Architecture -->
+    <div class="panel on" id="p-arch">
+      <div class="arch">
+        <svg viewBox="0 0 1080 300" role="img" aria-label="Mini VL-JEPA pipeline: video to frozen encoder to predictor to gate to decoder, with LaBSE supplying the target space and re-ranking the candidates.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)" opacity=".55" color="var(--muted)">
+            <path d="M118,110 H158"/><path d="M300,110 H340"/><path d="M482,110 H522"/>
+            <path d="M664,110 H704"/><path d="M846,110 H886"/>
+            <path d="M593,150 V196 H418 V150" stroke-dasharray="4 3"/>
+            <path d="M968,150 V232 H593 V166" stroke-dasharray="4 3"/>
+          </g>
+
+          <g font-size="12.5" fill="var(--ink)">
+            <g class="astep" data-s="1"><!-- 1 -->
+            <rect x="18" y="72" width="100" height="76" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="30" y="94" font-size="10.5" fill="var(--muted)">01</text>
+            <text x="30" y="112" font-weight="600">Clip</text>
+            <text x="30" y="130" font-size="11" fill="var(--muted)">16 × 256²</text></g>
+            <g class="astep" data-s="2"><!-- 2 -->
+            <rect x="158" y="72" width="142" height="76" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="170" y="94" font-size="10.5" fill="var(--muted)">02 · frozen ❄</text>
+            <text x="170" y="112" font-weight="600">V-JEPA 2 ViT-L</text>
+            <text x="170" y="130" font-size="11" fill="var(--muted)">2048 × 1024 tokens</text></g>
+            <g class="astep" data-s="3"><!-- 3 -->
+            <rect x="340" y="66" width="142" height="88" rx="8" fill="var(--signal-soft)" stroke="var(--signal)" stroke-width="1.5"/>
+            <text x="352" y="88" font-size="10.5" fill="var(--signal)">03 · trainable 🔥</text>
+            <text x="352" y="106" font-weight="600">Predictor head</text>
+            <text x="352" y="123" font-size="11" fill="var(--muted)">cross-attn ×6</text>
+            <text x="352" y="139" font-size="11" fill="var(--muted)">→ ẑ ∈ ℝ⁷⁶⁸, ‖ẑ‖=1</text></g>
+            <g class="astep" data-s="4"><!-- 4 gate -->
+            <rect x="522" y="72" width="142" height="76" rx="8" fill="var(--gate-on-soft)" stroke="var(--gate-on)" stroke-width="1.5"/>
+            <text x="534" y="94" font-size="10.5" fill="var(--gate-on)">04 · gate</text>
+            <text x="534" y="112" font-weight="600">1 − cos(ẑₜ, ẑ_ref)</text>
+            <text x="534" y="130" font-size="11" fill="var(--muted)">&gt; τ ? decode : reuse</text></g>
+            <g class="astep" data-s="5"><!-- 5 decoder -->
+            <rect x="704" y="66" width="142" height="88" rx="8" fill="var(--signal-soft)" stroke="var(--signal)" stroke-width="1.5"/>
+            <text x="716" y="88" font-size="10.5" fill="var(--signal)">05 · trainable 🔥</text>
+            <text x="716" y="106" font-weight="600">mT5-small + LoRA</text>
+            <text x="716" y="123" font-size="11" fill="var(--muted)">easy / medium / hard</text>
+            <text x="716" y="139" font-size="11" fill="var(--muted)">EN · HI</text></g>
+            <g class="astep" data-s="6"><!-- 6 rerank -->
+            <rect x="886" y="72" width="164" height="76" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="898" y="94" font-size="10.5" fill="var(--muted)">06 · frozen ❄</text>
+            <text x="898" y="112" font-weight="600">LaBSE re-rank</text>
+            <text x="898" y="130" font-size="11" fill="var(--muted)">argmax cos(z_cand, ẑ)</text></g>
+
+            <g class="astep" data-s="3"><!-- target space note -->
+            <rect x="340" y="196" width="256" height="44" rx="8" fill="var(--surface-2)" stroke="var(--line)" stroke-dasharray="4 3"/>
+            <text x="352" y="216" font-size="11" fill="var(--muted)">training target ❄</text>
+            <text x="352" y="232" font-size="11.5" font-weight="600">LaBSE(caption) — 109-language space</text>
+            <text x="612" y="220" font-size="11" fill="var(--muted)">InfoNCE + cosine</text>
+            <text x="612" y="234" font-size="11" fill="var(--muted)">no text encoder is trained</text></g>
+          </g>
+        </svg>
+      </div>
+      <div class="steps" id="steps">
+        <div class="steprow">
+          <button class="btn stepbtn" id="stepPrev" title="Previous stage (←)">←</button>
+          <div class="stepdots" id="stepDots"></div>
+          <button class="btn stepbtn" id="stepNext" title="Next stage (→)">→</button>
+          <button class="btn stepbtn wide" id="stepAll">Show all</button>
+        </div>
+        <div class="stepbody" id="stepBody">
+          <h4 id="stepTitle">Walk the pipeline</h4>
+          <p id="stepText">Step through one stage at a time, or press <kbd>Show all</kbd> to see the whole diagram at once. Arrow keys work too.</p>
+          <p class="stepshape" id="stepShape"></p>
+        </div>
+      </div>
+      <p class="caveat">Frozen ❄ blocks are downloaded, never updated. Only the two 🔥 blocks carry gradients, which is why the whole thing trains on one 6 GB laptop GPU.</p>
+    </div>
+
+    <!-- Advantages -->
+    <div class="panel" id="p-adv">
+      <div class="cols">
+        <div class="note"><h4>Eight languages for free</h4><p>Train the predictor on English captions only; query it in Hindi, German, Tamil, Chinese, Telugu, Marathi, Arabic and Bengali, with 83–97% of English retrieval retained. No translated training data, no second training run.<span class="vs">vs. DistilGPT-2 baseline: English only</span></p></div>
+        <div class="note"><h4>The decoder mostly sleeps</h4><p>Consecutive windows of a video usually mean the same thing. Comparing predicted embeddings costs a dot product; generating text costs an autoregressive pass. Skipping the redundant ones gives 3.1× on streaming input at τ = 0.10.<span class="vs">vs. VL-JEPA / video-LLMs: decode every window</span></p></div>
+        <div class="note"><h4>Trains on hardware a student owns</h4><p>Both large models stay frozen and their outputs are cached, so a single training epoch touches only a 26.5 M-parameter head. 6 GB VRAM, no cluster, no gradient checkpointing gymnastics.<span class="vs">vs. CLIP4Clip, InternVideo2: 8–64 A100s</span></p></div>
+        <div class="note"><h4>The predictor picks the caption</h4><p>Generation is the weak link, retrieval is the strong one. So the decoder proposes several captions and the predictor's own embedding chooses between them — the strong head grades the weak one.<span class="vs">vs. beam log-probability alone</span></p></div>
+        <div class="note"><h4>Swappable target space</h4><p>Nothing in the head is tied to LaBSE. Point it at another sentence encoder and the whole language coverage changes without touching the video side.<span class="vs">vs. jointly-trained dual encoders</span></p></div>
+        <div class="note"><h4>Reproducible end to end</h4><p>Cached features are deterministic, the head is small, and a full re-run is hours rather than GPU-weeks — so every ablation in the thesis can actually be re-run by an examiner.</p></div>
+      </div>
+    </div>
+
+    <!-- Limitations -->
+    <div class="panel" id="p-lim">
+      <div class="cols">
+        <div class="note"><h4>Retrieval sits well below the dual encoders</h4><p>A contrastively trained pair of encoders that sees text during video training will beat a regression head onto a frozen text space. The gap is the price of freezing both towers.</p></div>
+        <div class="note"><h4>Captions are fluent, not precise</h4><p>The head predicts one sentence vector; fine detail — counts, colours, names — is not recoverable from it. Expect plausible captions with occasional wrong specifics.</p></div>
+        <div class="note"><h4>Hindi output lags Hindi retrieval</h4><p>Cross-lingual retrieval is strong because LaBSE is strong. Hindi generation is limited by mT5-small under LoRA, not by the predictor — a decoder problem, and a fixable one.</p></div>
+        <div class="note"><h4>The gate assumes slow scenes</h4><p>τ trades captions-per-second against missed transitions. On rapid cuts the same τ either fires constantly (no saving) or skips a real change (stale caption).</p></div>
+        <div class="note"><h4>One dataset, one domain</h4><p>MSR-VTT is short, web-sourced, English-captioned clips. Nothing here has been shown to hold on egocentric, medical or surveillance video.</p></div>
+        <div class="note"><h4>Inherits every bias upstream</h4><p>Both frozen models carry their pre-training distribution. Freezing them means their blind spots cannot be trained away — they can only be measured.</p></div>
+      </div>
+    </div>
+
+    <!-- Disadvantages: where it loses head-to-head, named opponent each time -->
+    <div class="panel" id="p-dis">
+      <p class="caveat" style="margin:0 0 14px">Limitations are what the method cannot do. These are the places where a named alternative does the same job better, and why we accepted the trade.</p>
+      <div class="cols">
+        <div class="note"><h4>No dialogue, no questions, no reasoning</h4><p>Ask Qwen2-VL or VideoChat2 "what colour is the pan?" and it answers. This emits one caption and stops. It is a captioner, not an assistant, and no amount of head training changes that.<span class="vs">loses to: Qwen2-VL, Video-LLaMA, VideoChat2</span></p></div>
+        <div class="note"><h4>Retrieval trails a tuned dual encoder</h4><p>CLIP4Clip and X-CLIP see text while training the video tower, so their two spaces are shaped for each other. We regress onto a text space that was frozen before we started. Freezing buys the 6 GB budget and costs retrieval accuracy.<span class="vs">loses to: CLIP4Clip, X-CLIP, InternVideo2</span></p></div>
+        <div class="note"><h4>Generation quality is capped by mT5-small</h4><p>The predicted embedding carries more than the decoder can express. A 7B LLM head on the same vector would read better. mT5-small was chosen for VRAM, not for fluency — the ceiling is ours, not the method's.<span class="vs">loses to: any LLM-headed video model</span></p></div>
+        <div class="note"><h4>One vector per window loses ordering</h4><p>Pooling to a single embedding discards sequence. "He picks it up, then puts it down" and its reverse land in almost the same place. Token-level video-LLMs keep the frames and can tell them apart.<span class="vs">loses to: frame-token architectures</span></p></div>
+        <div class="note"><h4>The gate's saving is scene-dependent</h4><p>The 3.1× holds on MSR-VTT's slow web clips. On rapid cuts the gate fires on nearly every window and the speed-up collapses toward 1×. It is a real result on a real distribution, not a universal constant.<span class="vs">worst case: equal to ungated decoding</span></p></div>
+        <div class="note"><h4>Two-stage training needs a workaround</h4><p>The decoder trains on ground-truth LaBSE vectors but meets predicted ones at inference, and early captions were poor because of it. Predicted-embedding mixing plus noise injection closes the gap, but the mismatch is inherent to decoupling the two heads.<span class="vs">end-to-end models do not have this seam</span></p></div>
+      </div>
+    </div>
+
+    <!-- Use cases -->
+    <div class="panel" id="p-use">
+      <div class="cols">
+        <div class="note"><h4>Multilingual video search</h4><p>Index once with the predicted embedding, query in any LaBSE language. No per-language index, no translation service in the request path.</p></div>
+        <div class="note"><h4>Live captioning on an edge device</h4><p>The gate is what makes this plausible: encode continuously, generate rarely. Cost tracks scene changes rather than wall-clock time.</p></div>
+        <div class="note"><h4>Archive triage</h4><p>Embed a large unlabelled collection, cluster in the shared space, and read out only the cluster centroids as captions.</p></div>
+        <div class="note"><h4>Cheap probe for a new video encoder</h4><p>Swap the frozen backbone, retrain the head in an afternoon, and read off how much language-alignable content the new features carry.</p></div>
+        <div class="note"><h4>Teaching artifact</h4><p>Every stage is separable and inspectable — a rare thing in a video-language stack, and the reason the gate can be drawn live in this page.</p></div>
+        <div class="note"><h4>Not for</h4><p>Anything needing exact reading of on-screen text, counting, safety-critical description, or fine-grained action boundaries.</p></div>
+      </div>
+    </div>
+
+    <!-- Comparison -->
+    <div class="panel" id="p-cmp">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>System</th><th>Video side</th><th>Text space</th><th>Languages</th>
+            <th class="num">Trainable</th><th class="num">Train hardware</th><th>Generates?</th><th>Gated?</th>
+          </tr></thead>
+          <tbody>
+            <tr class="ours"><td>Mini VL-JEPA <em>(ours)</em><br><a class="hfid" href="https://github.com/MineshPradhan/Mini-VL-JEPA" target="_blank" rel="noopener">github.com/MineshPradhan/Mini-VL-JEPA</a></td><td>V-JEPA 2, frozen<br><a class="hfid" href="https://huggingface.co/facebook/vjepa2-vitl-fpc64-256" target="_blank" rel="noopener">facebook/vjepa2-vitl-fpc64-256</a></td><td>LaBSE, frozen</td><td>109 (8 tested)</td><td class="num">26.5 M</td><td class="num">1 × 6 GB</td><td>yes, mT5+LoRA</td><td>yes, τ</td></tr>
+            <tr><td>DistilGPT-2 baseline <em>(ours)</em><br><a class="hfid" href="https://huggingface.co/distilbert/distilgpt2" target="_blank" rel="noopener">distilbert/distilgpt2</a></td><td>V-JEPA 2, frozen</td><td>—</td><td>English</td><td class="num">~82 M</td><td class="num">1 × 6 GB</td><td>yes</td><td>no</td></tr>
+            <tr><td>VL-JEPA <em>(the paper we extend)</em><br><span class="hfid none">no public weights</span></td><td>V-JEPA, frozen</td><td>English sentence enc.</td><td>English</td><td class="num">fill in</td><td class="num">fill in</td><td>yes</td><td>no</td></tr>
+            <tr><td>V-JEPA 2 <em>(backbone alone)</em></td><td>—</td><td>none</td><td>—</td><td class="num">n/a</td><td class="num">large cluster</td><td>no</td><td>no</td></tr>
+            <tr><td>CLIP4Clip<br><a class="hfid" href="https://huggingface.co/Searchium-ai/clip4clip-webvid150k" target="_blank" rel="noopener">Searchium-ai/clip4clip-webvid150k</a></td><td>CLIP ViT-B, tuned</td><td>CLIP text, tuned</td><td>English</td><td class="num">~150 M</td><td class="num">multi-GPU</td><td>no</td><td>no</td></tr>
+            <tr><td>X-CLIP<br><a class="hfid" href="https://huggingface.co/microsoft/xclip-base-patch32" target="_blank" rel="noopener">microsoft/xclip-base-patch32</a></td><td>CLIP ViT-B, tuned</td><td>CLIP text, tuned</td><td>English</td><td class="num">~160 M</td><td class="num">multi-GPU</td><td>no</td><td>no</td></tr>
+            <tr><td>Multilingual-CLIP<br><a class="hfid" href="https://huggingface.co/sentence-transformers/clip-ViT-B-32-multilingual-v1" target="_blank" rel="noopener">sentence-transformers/clip-ViT-B-32-multilingual-v1</a></td><td>CLIP image, frozen</td><td>distilled XLM-R</td><td>50+</td><td class="num">~280 M</td><td class="num">multi-GPU</td><td>no</td><td>no</td></tr>
+            <tr><td>Chinese-CLIP (Alibaba)<br><a class="hfid" href="https://huggingface.co/OFA-Sys/chinese-clip-vit-base-patch16" target="_blank" rel="noopener">OFA-Sys/chinese-clip-vit-base-patch16</a></td><td>ViT, tuned</td><td>Chinese RoBERTa</td><td>Chinese</td><td class="num">~190 M+</td><td class="num">multi-GPU</td><td>no</td><td>no</td></tr>
+            <tr><td>InternVideo2 (Shanghai AI Lab)<br><a class="hfid" href="https://huggingface.co/OpenGVLab/InternVideo2-Stage2_1B-224p-f4" target="_blank" rel="noopener">OpenGVLab/InternVideo2-Stage2_1B-224p-f4</a></td><td>own ViT, tuned</td><td>own text enc.</td><td>EN (+ZH variants)</td><td class="num">1 B–6 B</td><td class="num">large cluster</td><td>via LLM head</td><td>no</td></tr>
+            <tr><td>Video-LLaMA / VideoChat2<br><a class="hfid" href="https://huggingface.co/DAMO-NLP-SG" target="_blank" rel="noopener">DAMO-NLP-SG · OpenGVLab</a></td><td>ViT + Q-Former</td><td>LLM tokens</td><td>EN / ZH</td><td class="num">7 B class</td><td class="num">multi-A100</td><td>yes</td><td>no</td></tr>
+            <tr><td>Qwen2-VL (Alibaba)<br><a class="hfid" href="https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct" target="_blank" rel="noopener">Qwen/Qwen2-VL-7B-Instruct</a></td><td>native-res ViT</td><td>LLM tokens</td><td>many</td><td class="num">2 B–72 B</td><td class="num">large cluster</td><td>yes</td><td>no</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caveat">Accuracy columns are deliberately absent here: published R@1 figures use the standard MSR-VTT 1k-A test split, and mixing them with a different split in the same table would not be a comparison. The numeric table lives in the thesis, on one split, with citations.</p>
+    </div>
+  </div>
+
+  <!-- ============ THESIS PANEL (hidden) ============ -->
+  <section class="thesis" id="thesis">
+    <p class="eyebrow">Measurement — hidden during the talk, kept for the thesis <kbd>T</kbd></p>
+    <div class="metrics" id="metrics"></div>
+    <pre id="rawJson">no response yet</pre>
+  </section>
+
+  <footer class="foot">
+    <kbd>Space</kbd> play · <kbd>C</kbd> candidates · <kbd>T</kbd> thesis mode · <kbd>D</kbd> dark ·
+    <span id="modeNote"></span>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — the only block you normally need to edit
+   ============================================================ */
+const CONFIG = {
+  // Same origin when FastAPI serves this file. Absolute when you open index.html directly.
+  API_BASE: location.protocol === "file:" ? "http://127.0.0.1:8000" : "",
+  TIMEOUT_MS: 180000,
+  LANGS: [ {code:"en", label:"English"}, {code:"hi", label:"हिन्दी"}, {code:"zh", label:"中文"} ],
+  // If the backend is unreachable the page runs on the sample below instead of breaking mid-talk.
+  ALLOW_FALLBACK: false
+};
+
+/* ---------- fallback payload: keeps the demo alive if the API is down ---------- */
+const FALLBACK_SAMPLES = [
+  {id:"video7010", title:"Cooking",  url:"media/video7010.mp4", duration:14.9},
+  {id:"video9770", title:"Football", url:"media/video9770.mp4", duration:12.4},
+  {id:"video8548", title:"Guitar",   url:"media/video8548.mp4", duration:19.2}
+];
+const FALLBACK_RESULT = {
+  video_id:"video7010", tau:0.10, offline:true,
+  langs:{
+    en:{ best_id:"medium", candidates:[
+      {id:"easy",   tier:"easy",   text:"a man is cooking", score:0.512},
+      {id:"medium", tier:"medium", text:"a man is adding vegetables to a pan on a stove", score:0.617},
+      {id:"hard",   tier:"hard",   text:"a man in a kitchen adds chopped vegetables to a hot pan and stirs them while steam rises", score:0.564}
+    ]},
+    hi:{ best_id:"medium", candidates:[
+      {id:"easy",   tier:"easy",   text:"एक आदमी खाना बना रहा है", score:0.488},
+      {id:"medium", tier:"medium", text:"एक आदमी पैन में सब्ज़ियाँ डाल रहा है", score:0.573},
+      {id:"hard",   tier:"hard",   text:"रसोई में एक आदमी गरम पैन में कटी हुई सब्ज़ियाँ डालकर उन्हें चला रहा है", score:0.531}
+    ]},
+    zh:{ best_id:"medium", candidates:[
+      {id:"easy",   tier:"easy",   text:"一个男人在做饭", score:0.470},
+      {id:"medium", tier:"medium", text:"一个男人正在往锅里加蔬菜", score:0.559},
+      {id:"hard",   tier:"hard",   text:"一个男人在厨房里把切好的蔬菜放进热锅并翻炒", score:0.522}
+    ]}
+  },
+  selective:{ tau:0.10, windows:12, decoded:4, speedup:3.1, triggers:[
+    {t:0.0,drift:1.00,decoded:true},{t:1.2,drift:0.03,decoded:false},{t:2.5,drift:0.05,decoded:false},
+    {t:3.7,drift:0.14,decoded:true},{t:5.0,drift:0.06,decoded:false},{t:6.2,drift:0.04,decoded:false},
+    {t:7.4,drift:0.02,decoded:false},{t:8.7,drift:0.19,decoded:true},{t:9.9,drift:0.07,decoded:false},
+    {t:11.2,drift:0.05,decoded:false},{t:12.4,drift:0.11,decoded:true},{t:13.6,drift:0.03,decoded:false}
+  ]},
+  timings:{encode_ms:118, predict_ms:9, decode_ms:441, total_ms:568},
+  metrics:{ r1:19.7, r5:44.1, r10:57.3, medr:8, retention:"87–95%", speedup:3.1, params_m:20.4 }
+};
+
+/* ============================================================ */
+const $ = s => document.querySelector(s);
+const state = { samples:[], sample:null, result:null, lang:"en", online:false };
+
+/* ---------- network ---------- */
+async function api(path, opts={}){
+  const ctl = new AbortController();
+  const t = setTimeout(()=>ctl.abort(), CONFIG.TIMEOUT_MS);
+  try{
+    const r = await fetch(CONFIG.API_BASE + path, {...opts, signal:ctl.signal});
+    if(!r.ok){
+      let msg = "HTTP " + r.status;
+      try{ const j = await r.json(); if(j.detail) msg += " - " + j.detail; }catch(_){}
+      throw new Error(msg);
+    }
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  buildLangs();
+  try{
+    const h = await api("/api/health");
+    state.online = true;
+    $("#tagBackend").innerHTML = '<span class="dot"></span> ' + (h.device || "backend up");
+  }catch(e){
+    state.online = false;
+    $("#tagBackend").innerHTML = '<span class="dot off"></span> backend offline';
+    $("#modeNote").textContent = "Backend unreachable (" + e.message + "). Start it with: uvicorn server.app:app --port 8000, then open http://127.0.0.1:8000/";
+  }
+  try{
+    state.samples = state.online ? (await api("/api/samples")).samples : FALLBACK_SAMPLES;
+  }catch(e){ state.samples = FALLBACK_SAMPLES; }
+  buildSources();
+  if(state.samples.length) pick(state.samples[0]);
+}
+
+/* ---------- sources ---------- */
+function buildSources(){
+  const box = $("#sources"); box.innerHTML = "";
+  state.samples.forEach(s=>{
+    const b = document.createElement("button");
+    b.className = "src"; b.textContent = s.title || s.id; b.dataset.id = s.id;
+    b.onclick = ()=>pick(s);
+    box.appendChild(b);
+  });
+  const lab = document.createElement("label");
+  lab.className = "src up"; lab.textContent = "Load a file…";
+  lab.style.cursor = "pointer";
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "video/*"; inp.hidden = true;
+  inp.onchange = e => { const f = e.target.files[0]; if(f) pickLocal(f); };
+  lab.appendChild(inp);
+  box.appendChild(lab);
+}
+
+function markSource(id){
+  document.querySelectorAll(".src").forEach(b=>b.classList.toggle("on", b.dataset.id===id));
+}
+
+/* ---------- selection ---------- */
+function srcUrl(u){
+  if(!u) return "";
+  if(u.startsWith("http") || u.startsWith("blob:")) return u;
+  // Offline: resolve relative to index.html so ./media/*.mp4 still plays with no server.
+  if(!state.online) return u.replace(/^\//, "");
+  return CONFIG.API_BASE + "/" + u.replace(/^\//, "");
+}
+
+async function pick(s){
+  state.sample = s; markSource(s.id);
+  const v = $("#vid");
+  v.src = srcUrl(s.url);
+  $("#vidEmpty").style.display = "none";
+  await runCaption({video_id:s.id});
+}
+
+async function pickLocal(file){
+  const url = URL.createObjectURL(file);
+  state.sample = {id:"upload", title:file.name, url};
+  markSource("upload");
+  $("#vid").src = url; $("#vidEmpty").style.display = "none";
+  const fd = new FormData(); fd.append("file", file);
+  await runCaption(null, fd);
+}
+
+/* ---------- inference ---------- */
+let reqSeq = 0;
+async function runCaption(body, formData){
+  const my = ++reqSeq;
+  setBusy(true);
+  let res = null;
+  if(state.online){
+    try{
+      res = formData
+        ? await api("/api/caption", {method:"POST", body:formData})
+        : await api("/api/caption", {method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({...body, tiers:["easy","medium","hard"], langs:CONFIG.LANGS.map(l=>l.code)})});
+    }catch(e){
+      console.warn("caption failed:", e);
+      $("#modeNote").textContent = "Caption request failed: " + (e.name === "AbortError" ? "timed out" : e.message);
+    }
+  }
+  if(my !== reqSeq) return;   // a newer request superseded this one
+  if(!res && CONFIG.ALLOW_FALLBACK) res = FALLBACK_RESULT;
+  state.result = res;
+  setBusy(false);
+  if(!res){
+    $("#capText").textContent = state.online ? "caption failed - see the note at the bottom of the page" : "backend offline - no caption";
+    [...$("#strip").querySelectorAll(".win")].forEach(n=>n.remove());
+    $("#cands").innerHTML = "";
+    return;
+  }
+  if(res.langs && res.langs[state.lang] && res.langs[state.lang].source)
+    $("#modeNote").textContent = "Live model · " + (res.device || "") + " · " + state.lang.toUpperCase() + ": " + res.langs[state.lang].source;
+  render();
+}
+
+function setBusy(on){
+  $("#capText").textContent = on ? "predicting…" : $("#capText").textContent;
+  $("#capText").style.opacity = on ? .45 : 1;
+}
+
+/* ---------- languages ---------- */
+function buildLangs(){
+  const box = $("#langs"); box.innerHTML = "";
+  CONFIG.LANGS.forEach(l=>{
+    const b = document.createElement("button");
+    b.className = "lang" + (l.code===state.lang ? " on" : "");
+    b.textContent = l.label; b.dataset.code = l.code;
+    b.onclick = ()=>{ state.lang = l.code; buildLangs(); renderCaption();
+      const r = state.result, pk = r && r.langs && r.langs[l.code];
+      if(pk && pk.source) $("#modeNote").textContent = "Live model · " + (r.device || "") + " · " + l.code.toUpperCase() + ": " + pk.source; };
+    box.appendChild(b);
+  });
+}
+
+/* ---------- render ---------- */
+function render(){ renderCaption(); renderGate(); renderThesis(); }
+
+function renderCaption(){
+  const r = state.result; if(!r) return;
+  const pack = (r.langs && r.langs[state.lang]) || (r.langs && r.langs.en);
+  if(!pack){ $("#capText").textContent = "no caption for this language"; return; }
+  const cands = pack.candidates || [];
+  const best = cands.find(c=>c.id===pack.best_id) || cands[0];
+  if(!best) return;
+
+  const el = $("#capText");
+  el.textContent = best.text;
+  el.className = "caption " + state.lang;
+  el.lang = state.lang;
+  $("#bestBadge").textContent = "■ best of " + cands.length + " · " + best.tier;
+  $("#capScore").textContent = best.score.toFixed(3);
+  $("#capFill").style.width = Math.max(4, Math.min(100, best.score*100)) + "%";
+
+  // candidates
+  const box = $("#cands"); box.innerHTML = "";
+  const order = {easy:0, medium:1, hard:2};
+  [...cands].sort((a,b)=>(order[a.tier]??9)-(order[b.tier]??9)).forEach(c=>{
+    const d = document.createElement("div");
+    d.className = "cand" + (c.id===best.id ? " best" : "");
+    d.innerHTML =
+      '<div class="cand-top"><span class="tier">'+c.tier+'</span>' +
+      (c.id===best.id ? '<span class="tier" style="border-color:var(--signal);color:var(--signal)">chosen</span>' : '') +
+      '<span class="cand-score">cos '+c.score.toFixed(3)+'</span></div>' +
+      '<div class="cand-text" lang="'+state.lang+'">'+escapeHtml(c.text)+'</div>' +
+      '<div class="bar"><i></i></div>';
+    box.appendChild(d);
+    requestAnimationFrame(()=>{ d.querySelector(".bar i").style.width = Math.min(100, c.score*100)+"%"; });
+  });
+  $("#candsLabel").textContent = box.hidden ? "Show the other candidates" : "Hide the other candidates";
+}
+
+function renderGate(){
+  const r = state.result, sel = r && r.selective;
+  const strip = $("#strip");
+  [...strip.querySelectorAll(".win")].forEach(n=>n.remove());
+  $("#holdState").textContent = ""; $("#holdState").classList.remove("fresh");
+  if(!sel){ return; }
+  sel.triggers.forEach((w,i)=>{
+    const b = document.createElement("button");
+    b.className = "win" + (w.decoded ? " fired" : "");
+    b.dataset.i = i;
+    b.title = (w.decoded ? "decoder ran" : "caption reused") + " · drift " + w.drift.toFixed(2);
+    b.innerHTML = '<span class="drift">t '+w.t.toFixed(1)+'s · drift '+w.drift.toFixed(2)+'</span>';
+    b.onclick = ()=>{ const v=$("#vid"); if(isFinite(v.duration)) v.currentTime = w.t; };
+    strip.appendChild(b);
+  });
+  $("#fTau").textContent = (sel.tau ?? "—");
+  $("#fWin").textContent = sel.windows;
+  $("#fDec").textContent = sel.decoded;
+  $("#fSpd").textContent = (sel.speedup ? sel.speedup.toFixed(1)+"×" : "—");
+  $("#fLat").textContent = r.timings ? Math.round(r.timings.total_ms)+" ms" : "—";
+}
+
+function renderThesis(){
+  const r = state.result; if(!r) return;
+  const m = r.metrics || {};
+  const cells = [
+    ["R@1",      m.r1!=null ? m.r1+"%" : "—", "video→text, val split"],
+    ["R@5",      m.r5!=null ? m.r5+"%" : "—", ""],
+    ["R@10",     m.r10!=null ? m.r10+"%" : "—", ""],
+    ["MedR",     m.medr ?? "—", "median rank"],
+    ["retention",m.retention ?? "—", "8 unseen languages"],
+    ["speed-up", m.speedup ? m.speedup+"×" : "—", "τ = 0.10"],
+    ["params",   m.params_m ? m.params_m+" M" : "—", "trainable"]
+  ];
+  $("#metrics").innerHTML = cells.map(c =>
+    '<div class="metric"><div class="v">'+c[1]+'</div><div class="k">'+c[0]+(c[2]?" · "+c[2]:"")+'</div></div>').join("");
+  $("#rawJson").textContent = JSON.stringify(r, null, 2);
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- playhead follows the video across the gate strip ---------- */
+$("#vid").addEventListener("timeupdate", ()=>{
+  const v = $("#vid"); if(!isFinite(v.duration) || !v.duration) return;
+  const pct = (v.currentTime / v.duration) * 100;
+  $("#playhead").style.left = pct + "%";
+  const wins = [...$("#strip").querySelectorAll(".win")];
+  if(!wins.length) return;
+  const idx = Math.min(wins.length-1, Math.floor((v.currentTime/v.duration)*wins.length));
+  wins.forEach((w,i)=>w.classList.toggle("active", i===idx));
+
+  // Is the caption on screen fresh, or is the gate still holding an older one?
+  const sel = state.result && state.result.selective;
+  if(!sel || !sel.triggers || !sel.triggers.length) return;
+  let fired = null, held = 0;
+  for(const w of sel.triggers){
+    if(w.t > v.currentTime) break;
+    if(w.decoded){ fired = w; held = 0; } else if(fired){ held++; }
+  }
+  const hs = $("#holdState");
+  if(!fired){ hs.textContent = ""; return; }
+  hs.textContent = held === 0
+    ? "decoded at " + fired.t.toFixed(1) + "s"
+    : "held since " + fired.t.toFixed(1) + "s · " + held + " window" + (held > 1 ? "s" : "") + " skipped";
+  hs.classList.toggle("fresh", held === 0);
+});
+$("#vid").addEventListener("loadedmetadata", ()=>{ $("#vidEmpty").style.display="none"; });
+$("#vid").addEventListener("error", ()=>{
+  $("#vidEmpty").style.display="grid";
+  $("#vidEmpty").textContent = "That clip did not load. Check the media path, or load a file from your machine.";
+});
+
+/* ---------- architecture step-through ---------- */
+const STEPS = [
+  { t:"01 · Clip in",
+    d:"A 16-frame window is sampled from the video and resized to 256². Nothing is learned here — it is deterministic preprocessing, and once cached to disk it never runs again during training.",
+    s:"in  16 × 3 × 224 × 224" },
+  { t:"02 · V-JEPA 2 ViT-L — frozen",
+    d:"Meta's self-supervised video encoder turns the window into spatio-temporal patch tokens. The weights never update, so features are extracted once and stored as fp16. This is the single reason the project fits on a 6 GB laptop card.",
+    s:"out 2048 × 1024 tokens" },
+  { t:"03 · Predictor head — trainable",
+    d:"The first of two trainable blocks, and the actual VL-JEPA move: instead of generating tokens, it regresses the caption's embedding. Six cross-attention layers pool the patch tokens into one unit vector. The training target is LaBSE(caption) — a frozen 109-language space — which is where the zero-shot transfer comes from.",
+    s:"2048 × 1024  →  ẑ ∈ ℝ⁷⁶⁸, ‖ẑ‖ = 1" },
+  { t:"04 · Selective gate",
+    d:"Consecutive windows of a video usually mean the same thing. Drift is one minus the cosine against the last committed embedding. Under τ the caption is reused and the decoder never runs; over τ the gate fires and a fresh decode is triggered. Comparing costs a dot product; generating costs an autoregressive pass.",
+    s:"1 − cos(ẑₜ, ẑ_ref) > τ ?  decode : reuse" },
+  { t:"05 · mT5-small + LoRA — trainable",
+    d:"The second trainable block turns the 768-d vector back into a sentence. Three decoding tiers — easy, medium, hard — propose different caption styles from the same vector. The current decoder is English (curriculum Stages 1–3); in this demo the Hindi and Chinese captions are NLLB translations of those candidates, each re-scored against ẑ with LaBSE. Native multilingual decoding is curriculum Stage 4.",
+    s:"ẑ ∈ ℝ⁷⁶⁸  →  easy / medium / hard  ×  EN · HI · ZH" },
+  { t:"06 · LaBSE re-rank — frozen",
+    d:"Generation is the weak head; retrieval is the strong one. Each candidate caption is re-encoded with LaBSE and scored by cosine against the predicted embedding, so the predictor grades the decoder rather than trusting beam log-probability alone.",
+    s:"argmax cos(z_cand, ẑ)" },
+];
+let stepAt = 0;   // 0 = show everything
+
+function renderStep(){
+  const arch = document.querySelector(".arch");
+  arch.classList.toggle("stepping", stepAt > 0);
+  document.querySelectorAll(".arch .astep").forEach(g=>{
+    g.classList.toggle("on", Number(g.dataset.s) === stepAt);
+  });
+  document.querySelectorAll(".stepdot").forEach(b=>{
+    b.classList.toggle("on", Number(b.dataset.s) === stepAt);
+  });
+  if(stepAt === 0){
+    $("#stepTitle").textContent = "Walk the pipeline";
+    $("#stepText").innerHTML = 'Step through one stage at a time, or press <kbd>Show all</kbd> to see the whole diagram at once. Arrow keys work too.';
+    $("#stepShape").textContent = "";
+  }else{
+    const s = STEPS[stepAt-1];
+    $("#stepTitle").textContent = s.t;
+    $("#stepText").textContent = s.d;
+    $("#stepShape").textContent = s.s;
+  }
+}
+function buildSteps(){
+  const box = $("#stepDots"); box.innerHTML = "";
+  STEPS.forEach((s,i)=>{
+    const b = document.createElement("button");
+    b.className = "stepdot"; b.dataset.s = i+1;
+    b.textContent = String(i+1).padStart(2,"0");
+    b.title = s.t;
+    b.onclick = ()=>{ stepAt = i+1; renderStep(); };
+    box.appendChild(b);
+  });
+  $("#stepPrev").onclick = ()=>{ stepAt = stepAt <= 1 ? STEPS.length : stepAt - 1; renderStep(); };
+  $("#stepNext").onclick = ()=>{ stepAt = stepAt >= STEPS.length ? 1 : stepAt + 1; renderStep(); };
+  $("#stepAll").onclick  = ()=>{ stepAt = 0; renderStep(); };
+  renderStep();
+}
+
+/* ---------- controls ---------- */
+$("#btnCands").onclick = ()=>{
+  const box = $("#cands"), open = box.hidden;
+  box.hidden = !open;
+  $("#btnCands").setAttribute("aria-expanded", String(open));
+  $("#candsLabel").textContent = open ? "Hide the other candidates" : "Show the other candidates";
+};
+$("#btnThesis").onclick = ()=>{
+  const on = $("#thesis").classList.toggle("on");
+  $("#btnThesis").classList.toggle("on", on);
+  if(on) $("#thesis").scrollIntoView({behavior:"smooth", block:"start"});
+};
+$("#btnTheme").onclick = ()=>{
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  $("#btnTheme").textContent = dark ? "Dark" : "Light";
+};
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".panel").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on");
+    $("#p-"+t.dataset.p).classList.add("on");
+  };
+});
+document.addEventListener("keydown", e=>{
+  if(/input|textarea/i.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if(k===" "){ e.preventDefault(); const v=$("#vid"); v.paused ? v.play() : v.pause(); }
+  if(k==="c") $("#btnCands").click();
+  if(k==="t") $("#btnThesis").click();
+  if(k==="d") $("#btnTheme").click();
+  // Arrow keys drive the architecture walk, but only while that tab is open.
+  if(k==="arrowright" || k==="arrowleft"){
+    if(!$("#p-arch").classList.contains("on")) return;
+    e.preventDefault();
+    (k==="arrowright" ? $("#stepNext") : $("#stepPrev")).click();
+  }
+});
+
+buildSteps();
+boot();
+</script>
+</body>
+</html>

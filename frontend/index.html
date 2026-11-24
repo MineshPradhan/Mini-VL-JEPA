@@ -263,6 +263,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--hairline);
     <!-- right: events -->
     <div class="card">
       <div class="panel-title">Decode events</div>
+      <div id="clipCap" hidden style="margin-bottom:10px;padding:8px 10px;border-radius:8px;background:#E8F6F1;color:#0B6E55;font-size:13px"></div>
       <div class="log" id="log"><div class="evt skip">idle — press Stream</div></div>
       <div class="stats">
         <div class="stat"><b id="stChunks">0</b><span>chunks</span></div>
@@ -344,16 +345,17 @@ function buildScenarios(){
     b.className="scn"+(i===scnIdx?" active":"");
     b.setAttribute("role","option");
     b.innerHTML=`<b>${s.name}</b><span>${s.desc}</span>`;
-    b.onclick=()=>{scnIdx=i;backendData=null;$("modeTag").textContent="simulation";reset();buildScenarios();};
+    b.onclick=()=>{scnIdx=i;backendData=null;$("clipCap").hidden=true;$("modeTag").textContent="simulation";reset();buildScenarios();};
     box.appendChild(b);
   });
   buildTimeline();
 }
 function buildTimeline(){
   const s=SCENARIOS[scnIdx];
-  totalChunks=s.segs.reduce((a,x)=>a+x.n,0);
   const track=$("tlTrack");
   track.querySelectorAll(".tl-seg").forEach(e=>e.remove());
+  if(backendData){ totalChunks=backendData.events.length; return; } // live mode: no simulated segments
+  totalChunks=s.segs.reduce((a,x)=>a+x.n,0);
   s.segs.forEach(seg=>{
     const d=document.createElement("div");
     d.className="tl-seg";
@@ -491,9 +493,11 @@ $("beFile").onchange=async e=>{
   const f=e.target.files[0]; if(!f)return;
   const st=$("beStatus"); st.textContent="running inference…"; st.className="";
   const fd=new FormData(); fd.append("file",f);
+  e.target.value=""; // allow re-uploading the same file
   try{
     const r=await fetch($("beUrl").value+`/predict?threshold=${tau}`,{method:"POST",body:fd});
-    const j=await r.json();
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.detail||("HTTP "+r.status));
     // normalize trajectory into [0.08, 0.92] for the scope
     const xs=j.trajectory_2d.map(p=>p[0]), ys=j.trajectory_2d.map(p=>p[1]);
     const nx=v=>0.08+0.84*(v-Math.min(...xs))/((Math.max(...xs)-Math.min(...xs))||1);
@@ -503,10 +507,12 @@ $("beFile").onchange=async e=>{
     $("modeTag").textContent="live model · "+f.name;
     st.textContent=`done · ${j.stats.chunks} chunks · ${Math.round(j.stats.decode_savings*100)}% decodes saved`;
     st.className="ok";
-    reset(); totalChunks=j.events.length; play();
+    const cc=$("clipCap"); cc.textContent="Whole-clip caption: "+(j.clip_caption||"—"); cc.hidden=false;
+    reset(); play();
   }catch(err){ st.textContent="inference failed: "+err.message; st.className="err"; }
 };
 
+if(location.protocol.startsWith("http")) $("beUrl").value=location.origin;
 buildScenarios(); draw(false);
 </script>
 </body>
